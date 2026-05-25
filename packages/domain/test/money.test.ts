@@ -8,7 +8,7 @@ import {
 } from '../src/money/index.js';
 
 const MAX_MINOR = 10n ** 15n;
-const moneyBRL = (): fc.Arbitrary<Money> =>
+const moneyBRL = (): fc.Arbitrary<Money<'BRL'>> =>
   fc.bigInt({ min: -MAX_MINOR, max: MAX_MINOR }).map((m) => Money.fromMinor(m, 'BRL'));
 
 describe('Money — construction', () => {
@@ -127,19 +127,22 @@ describe('Money — arithmetic laws (property-based)', () => {
   });
 });
 
-describe('Money — currency safety', () => {
+describe('Money — runtime currency safety (defense in depth)', () => {
+  // Branded Money<C> blocks cross-currency at compile time; these tests verify
+  // the runtime guard still fires for code that defeats the type system via
+  // casts (e.g. data deserialized as `Money<CurrencyCode>` then forced).
   it('rejects cross-currency arithmetic', () => {
     const brl = Money.fromMinor(100, 'BRL');
-    const usd = Money.fromMinor(100, 'USD');
+    const usd = Money.fromMinor(100, 'USD') as unknown as Money<'BRL'>;
     expect(() => brl.add(usd)).toThrow(CurrencyMismatchError);
     expect(() => brl.subtract(usd)).toThrow(CurrencyMismatchError);
     expect(() => brl.compare(usd)).toThrow(CurrencyMismatchError);
   });
 
-  it('equals across currencies is always false', () => {
+  it('equalsAny across currencies is always false', () => {
     const brl = Money.fromMinor(100, 'BRL');
     const usd = Money.fromMinor(100, 'USD');
-    expect(brl.equals(usd)).toBe(false);
+    expect(brl.equalsAny(usd)).toBe(false);
   });
 });
 

@@ -43,7 +43,9 @@ jobs:
         run: pnpm typecheck
 
       - name: Test (with coverage)
-        run: pnpm --filter @meridiano/domain exec vitest run --coverage
+        run: |
+          pnpm --filter @meridiano/domain exec vitest run --coverage
+          pnpm --filter @meridiano/application exec vitest run --coverage
 
       - name: Build
         run: pnpm build
@@ -52,6 +54,8 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: coverage-domain
-          path: packages/domain/coverage/
+          name: coverage
+          path: |
+            packages/domain/coverage/
+            packages/application/coverage/
           retention-days: 14

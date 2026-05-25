@@ -1,0 +1,9 @@
+{
+  "/_not-found/page": "/_not-found",
+  "/page": "/",
+  "/(dashboard)/accounts/page": "/accounts",
+  "/(dashboard)/dashboard/page": "/dashboard",
+  "/(auth)/sign-in/page": "/sign-in",
+  "/(dashboard)/ledger/page": "/ledger",
+  "/(dashboard)/transactions/new/page": "/transactions/new"
+}

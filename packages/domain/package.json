@@ -21,6 +21,10 @@
     "./cnpj": {
       "types": "./dist/cnpj/index.d.ts",
       "import": "./dist/cnpj/index.js"
+    },
+    "./ledger": {
+      "types": "./dist/ledger/index.d.ts",
+      "import": "./dist/ledger/index.js"
     }
   },
   "files": [
