@@ -23,26 +23,24 @@ describe('Money<C> — compile-time currency safety', () => {
     expectTypeOf(Money.parseUnsafe('100.00', 'EUR')).toEqualTypeOf<Money<'EUR'>>();
   });
 
-  it('add rejects different currencies at compile time', () => {
-    // Never executed — these calls would throw CurrencyMismatchError at runtime,
-    // but the @ts-expect-error markers verify the compiler catches it first.
-    function _unreached(): void {
-      const brl = Money.fromMinor(100, 'BRL');
-      const usd = Money.fromMinor(100, 'USD');
+  it('arithmetic methods require same currency at compile time', () => {
+    // For each currency-sensitive method, the parameter type is locked to the
+    // receiver's currency. Cross-currency arguments are rejected at compile time.
+    type AddParam = Parameters<Money<'BRL'>['add']>[0];
+    type SubParam = Parameters<Money<'BRL'>['subtract']>[0];
+    type EqParam = Parameters<Money<'BRL'>['equals']>[0];
+    type CmpParam = Parameters<Money<'BRL'>['compare']>[0];
 
-      // @ts-expect-error — cannot add Money<'USD'> to Money<'BRL'>
-      brl.add(usd);
+    expectTypeOf<AddParam>().toEqualTypeOf<Money<'BRL'>>();
+    expectTypeOf<SubParam>().toEqualTypeOf<Money<'BRL'>>();
+    expectTypeOf<EqParam>().toEqualTypeOf<Money<'BRL'>>();
+    expectTypeOf<CmpParam>().toEqualTypeOf<Money<'BRL'>>();
 
-      // @ts-expect-error — cannot subtract Money<'USD'> from Money<'BRL'>
-      brl.subtract(usd);
-
-      // @ts-expect-error — cannot compare Money<'USD'> to Money<'BRL'>
-      brl.compare(usd);
-
-      // @ts-expect-error — cannot equals Money<'USD'> to Money<'BRL'>
-      brl.equals(usd);
-    }
-    expectTypeOf(_unreached).toEqualTypeOf<() => void>();
+    // Money<'USD'> is NOT assignable to Money<'BRL'>, so it fails the parameter type.
+    expectTypeOf<Money<'USD'>>().not.toEqualTypeOf<AddParam>();
+    expectTypeOf<Money<'USD'>>().not.toEqualTypeOf<SubParam>();
+    expectTypeOf<Money<'USD'>>().not.toEqualTypeOf<EqParam>();
+    expectTypeOf<Money<'USD'>>().not.toEqualTypeOf<CmpParam>();
   });
 
   it('arithmetic returns same-currency Money', () => {
@@ -56,10 +54,12 @@ describe('Money<C> — compile-time currency safety', () => {
   });
 
   it('equalsAny accepts cross-currency at compile time', () => {
-    const brl = Money.fromMinor(100, 'BRL');
-    const usd = Money.fromMinor(100, 'USD');
-    // Allowed: equalsAny is the escape hatch for runtime currency comparison.
-    brl.equalsAny(usd);
+    // equalsAny is the escape hatch for runtime currency comparison —
+    // its parameter is the unparameterized `Money` (default = CurrencyCode union),
+    // so any concrete Money<C> is assignable.
+    type EqualsAnyParam = Parameters<Money<'BRL'>['equalsAny']>[0];
+    expectTypeOf<Money<'USD'>>().toMatchTypeOf<EqualsAnyParam>();
+    expectTypeOf<Money<'EUR'>>().toMatchTypeOf<EqualsAnyParam>();
   });
 
   it('toJSON preserves the currency literal', () => {
