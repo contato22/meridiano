@@ -46,6 +46,31 @@ export class Transaction {
   }
 
   /**
+   * Rehydrate a Transaction from already-persisted state. Skips construction
+   * validation by design — the row is assumed to have been validated when it
+   * was first written via `Transaction.create`, and the DB's per-currency
+   * balance trigger acts as the final guard. Used by infrastructure-layer
+   * repositories to convert query results back into domain aggregates.
+   */
+  static rehydrate(state: {
+    readonly id: string;
+    readonly workspaceId: string;
+    readonly occurredAt: Date;
+    readonly description: string;
+    readonly entries: readonly LedgerEntry[];
+    readonly externalRef?: string | undefined;
+  }): Transaction {
+    return new Transaction(
+      state.id,
+      state.workspaceId,
+      state.occurredAt,
+      state.description,
+      Object.freeze(state.entries.slice()),
+      state.externalRef,
+    );
+  }
+
+  /**
    * Validates a transaction input and constructs a `Transaction`. ID is generated
    * by the supplied generator (default: cryptographically random UUID v4).
    */

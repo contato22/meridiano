@@ -1,0 +1,14 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "noEmit": true
+  },
+  "include": ["src/**/*", "test/**/*", "vitest.config.ts"],
+  "references": [
+    { "path": "./tsconfig.build.json" },
+    { "path": "../domain/tsconfig.build.json" },
+    { "path": "../application/tsconfig.build.json" },
+    { "path": "../db/tsconfig.build.json" }
+  ]
+}
