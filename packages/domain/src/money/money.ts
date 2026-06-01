@@ -8,19 +8,21 @@ import type { MoneyError } from './errors.js';
 export type Rounding = 'half-even' | 'half-up' | 'down' | 'up';
 
 /**
- * Money is stored as a bigint of minor units (e.g. BRL "cents") plus a currency code.
- * Using bigint avoids the IEEE-754 precision loss that plagues `number` arithmetic
- * on monetary values, while remaining serializable when bridged through DTOs.
+ * Money is a branded value object parameterized by currency code. `Money<'BRL'>`
+ * and `Money<'USD'>` are distinct types; the TS compiler refuses to add them.
+ * Internally still stored as a bigint of minor units (e.g. BRL "cents") to avoid
+ * IEEE-754 precision loss. A runtime check defends against casts (and any code
+ * that drops the generic via `Money` without parameter).
  */
-export class Money {
+export class Money<C extends CurrencyCode = CurrencyCode> {
   private constructor(
     public readonly minor: bigint,
-    public readonly currency: CurrencyCode,
+    public readonly currency: C,
   ) {
     Object.freeze(this);
   }
 
-  static fromMinor(minor: bigint | number, currency: CurrencyCode): Money {
+  static fromMinor<C extends CurrencyCode>(minor: bigint | number, currency: C): Money<C> {
     if (typeof minor === 'number' && !Number.isInteger(minor)) {
       throw new InvalidAmountError(`Minor units must be integer: got ${minor}`);
     }
@@ -28,7 +30,7 @@ export class Money {
     return new Money(asBig, currency);
   }
 
-  static zero(currency: CurrencyCode): Money {
+  static zero<C extends CurrencyCode>(currency: C): Money<C> {
     return new Money(0n, currency);
   }
 
@@ -37,7 +39,7 @@ export class Money {
    * Rejects scientific notation, locale separators, and any precision beyond what the currency
    * supports — by design, since silent truncation of cents is a bug magnet.
    */
-  static parse(amount: string, currency: CurrencyCode): Result<Money, MoneyError> {
+  static parse<C extends CurrencyCode>(amount: string, currency: C): Result<Money<C>, MoneyError> {
     const trimmed = amount.trim();
     if (!/^-?\d+(\.\d+)?$/.test(trimmed)) {
       return err(new InvalidAmountError(`Invalid amount format: "${amount}"`));
@@ -60,27 +62,27 @@ export class Money {
     return ok(new Money(minor, currency));
   }
 
-  static parseUnsafe(amount: string, currency: CurrencyCode): Money {
+  static parseUnsafe<C extends CurrencyCode>(amount: string, currency: C): Money<C> {
     const r = Money.parse(amount, currency);
     if (!r.ok) throw r.error;
     return r.value;
   }
 
-  add(other: Money): Money {
+  add(other: Money<C>): Money<C> {
     this.assertSameCurrency(other);
     return new Money(this.minor + other.minor, this.currency);
   }
 
-  subtract(other: Money): Money {
+  subtract(other: Money<C>): Money<C> {
     this.assertSameCurrency(other);
     return new Money(this.minor - other.minor, this.currency);
   }
 
-  negate(): Money {
+  negate(): Money<C> {
     return new Money(-this.minor, this.currency);
   }
 
-  abs(): Money {
+  abs(): Money<C> {
     return new Money(this.minor < 0n ? -this.minor : this.minor, this.currency);
   }
 
@@ -88,7 +90,7 @@ export class Money {
    * Multiply by an integer factor. Stays exact.
    * For decimal multipliers (e.g. tax rates), use `multiplyDecimal` which requires explicit rounding.
    */
-  multiply(factor: bigint | number): Money {
+  multiply(factor: bigint | number): Money<C> {
     if (typeof factor === 'number' && !Number.isInteger(factor)) {
       throw new InvalidAmountError(
         `multiply() requires integer factor, got ${factor}. Use multiplyDecimal().`,
@@ -101,7 +103,7 @@ export class Money {
   /**
    * Multiply by a decimal factor expressed as a string ("0.085" for 8.5%). Rounding is mandatory.
    */
-  multiplyDecimal(factor: string, rounding: Rounding = 'half-even'): Money {
+  multiplyDecimal(factor: string, rounding: Rounding = 'half-even'): Money<C> {
     if (!/^-?\d+(\.\d+)?$/.test(factor.trim())) {
       throw new InvalidAmountError(`Invalid decimal factor: "${factor}"`);
     }
@@ -119,7 +121,7 @@ export class Money {
    * Integer division by a non-zero integer divisor; returns the floor-rounded result.
    * For currency-aware splitting (no lost cents), use `allocate`.
    */
-  divide(divisor: bigint | number, rounding: Rounding = 'half-even'): Money {
+  divide(divisor: bigint | number, rounding: Rounding = 'half-even'): Money<C> {
     if (typeof divisor === 'number' && !Number.isInteger(divisor)) {
       throw new InvalidAmountError(`divide() requires integer divisor, got ${divisor}`);
     }
@@ -132,7 +134,7 @@ export class Money {
    * Allocate this amount across N equal parts without losing or inventing cents.
    * Remainder cents are distributed one-by-one to the first parts.
    */
-  allocate(parts: number): Money[] {
+  allocate(parts: number): Money<C>[] {
     if (!Number.isInteger(parts) || parts <= 0) {
       throw new InvalidAmountError(`allocate() requires positive integer parts, got ${parts}`);
     }
@@ -141,7 +143,7 @@ export class Money {
     const remainder = this.minor - base * n;
     const sign = this.minor < 0n ? -1n : 1n;
     const absRem = remainder < 0n ? -remainder : remainder;
-    const result: Money[] = [];
+    const result: Money<C>[] = [];
     for (let i = 0n; i < n; i++) {
       const extra = i < absRem ? sign : 0n;
       result.push(new Money(base + extra, this.currency));
@@ -152,7 +154,7 @@ export class Money {
   /**
    * Allocate by integer ratios (e.g. [1, 2, 1] → 25%/50%/25%). Same "no lost cents" guarantee.
    */
-  allocateByRatios(ratios: readonly number[]): Money[] {
+  allocateByRatios(ratios: readonly number[]): Money<C>[] {
     if (ratios.length === 0) {
       throw new InvalidAmountError('allocateByRatios() requires at least one ratio');
     }
@@ -178,30 +180,39 @@ export class Money {
     return result.map((m) => new Money(m, this.currency));
   }
 
-  equals(other: Money): boolean {
+  equals(other: Money<C>): boolean {
     return this.currency === other.currency && this.minor === other.minor;
   }
 
-  compare(other: Money): -1 | 0 | 1 {
+  /**
+   * Cross-currency equality check. Returns false if currencies differ — useful for
+   * comparing two values that may or may not share a currency. Use `equals` when
+   * the compile-time currency parameter is already known to match.
+   */
+  equalsAny(other: Money): boolean {
+    return this.currency === other.currency && this.minor === other.minor;
+  }
+
+  compare(other: Money<C>): -1 | 0 | 1 {
     this.assertSameCurrency(other);
     if (this.minor < other.minor) return -1;
     if (this.minor > other.minor) return 1;
     return 0;
   }
 
-  lessThan(other: Money): boolean {
+  lessThan(other: Money<C>): boolean {
     return this.compare(other) < 0;
   }
 
-  lessThanOrEqual(other: Money): boolean {
+  lessThanOrEqual(other: Money<C>): boolean {
     return this.compare(other) <= 0;
   }
 
-  greaterThan(other: Money): boolean {
+  greaterThan(other: Money<C>): boolean {
     return this.compare(other) > 0;
   }
 
-  greaterThanOrEqual(other: Money): boolean {
+  greaterThanOrEqual(other: Money<C>): boolean {
     return this.compare(other) >= 0;
   }
 
@@ -244,7 +255,7 @@ export class Money {
     }).format(asNumber);
   }
 
-  toJSON(): { minor: string; currency: CurrencyCode } {
+  toJSON(): { minor: string; currency: C } {
     return { minor: this.minor.toString(), currency: this.currency };
   }
 

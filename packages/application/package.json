@@ -1,5 +1,5 @@
 {
-  "name": "@meridiano/domain",
+  "name": "@meridiano/application",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -10,21 +10,17 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
-    "./money": {
-      "types": "./dist/money/index.d.ts",
-      "import": "./dist/money/index.js"
+    "./commands": {
+      "types": "./dist/commands/index.d.ts",
+      "import": "./dist/commands/index.js"
     },
-    "./cpf": {
-      "types": "./dist/cpf/index.d.ts",
-      "import": "./dist/cpf/index.js"
+    "./queries": {
+      "types": "./dist/queries/index.d.ts",
+      "import": "./dist/queries/index.js"
     },
-    "./cnpj": {
-      "types": "./dist/cnpj/index.d.ts",
-      "import": "./dist/cnpj/index.js"
-    },
-    "./ledger": {
-      "types": "./dist/ledger/index.d.ts",
-      "import": "./dist/ledger/index.js"
+    "./ports": {
+      "types": "./dist/ports/index.d.ts",
+      "import": "./dist/ports/index.js"
     }
   },
   "files": [
@@ -37,9 +33,11 @@
     "lint": "eslint src test",
     "typecheck": "tsc -b tsconfig.json"
   },
+  "dependencies": {
+    "@meridiano/domain": "workspace:*"
+  },
   "devDependencies": {
     "@vitest/coverage-v8": "^2.1.8",
-    "fast-check": "^3.23.2",
     "vitest": "^2.1.8"
   }
 }
